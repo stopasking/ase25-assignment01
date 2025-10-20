@@ -1,0 +1,173 @@
+#!/usr/local/bin/bats
+# TODO: update path of Bats binary if necessary
+
+# Based on: https://chatgpt.com/share/672baa75-12a4-8005-be19-a2aaf2a52d0a
+
+# (1) Commits MUST be prefixed with a type, which consists of a noun, feat, fix, etc., followed by the OPTIONAL scope, OPTIONAL !, and REQUIRED terminal colon and space.
+# (4) A scope MAY be provided after a type. A scope MUST consist of a noun (here: a string containing only letters, numbers, or hyphens) describing a section of the codebase surrounded by parenthesis, e.g., fix(parser):
+# (5) A description MUST immediately follow the colon and space after the type/scope prefix. The description is a short summary of the code changes, e.g., fix: array parsing issue when multiple spaces were contained in string.
+# (6) A longer commit body MAY be provided after the short description, providing additional contextual information about the code changes. The body MUST begin one blank line after the description.
+# (7) A commit body is free-form and MAY consist of any number of newline separated paragraphs.
+# (8) One or more footers MAY be provided one blank line after the body. Each footer MUST consist of a word token, followed by either a :<space> or <space># separator, followed by a string value (this is inspired by the git trailer convention).
+# (9) A footer’s token MUST use - in place of whitespace characters, e.g., Acked-by (this helps differentiate the footer section from a multi-paragraph body). An exception is made for BREAKING CHANGE, which MAY also be used as a token.
+# (10) A footer’s value MAY contain spaces and newlines, and parsing MUST terminate when the next valid footer token/separator pair is observed.
+# (11) Breaking changes MUST be indicated in the type/scope prefix of a commit, or as an entry in the footer.
+# (12) If included as a footer, a breaking change MUST consist of the uppercase text BREAKING CHANGE, followed by a colon, space, and description, e.g., BREAKING CHANGE: environment variables now take precedence over config files.
+# (13) If included in the type/scope prefix, breaking changes MUST be indicated by a ! immediately before the :. If ! is used, BREAKING CHANGE: MAY be omitted from the footer section, and the commit description SHALL be used to describe the breaking change.
+# (14) Types other than feat and fix MAY be used in your commit messages, e.g., docs: update ref docs.
+# (15) The units of information that make up Conventional Commits MUST NOT be treated as case sensitive by implementors, with the exception of BREAKING CHANGE which MUST be uppercase.
+# (16) BREAKING-CHANGE MUST be synonymous with BREAKING CHANGE, when used as a token in a footer."
+
+####################################################################################################
+# Test cases covering (1): REQUIRED type and terminal colon
+# Test cases covering (5): REQUIRED description following type and colon
+# Test case covering (14): OPTIONAL custom types
+####################################################################################################
+
+@test "reject commit message without type" {
+  run ./commit-msg-hook "add feature without type" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "reject commit message without colon after type" {
+  run ./commit-msg-hook "feat add feature without colon" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "accept commit message with valid default type, colon, and description" {
+  run ./commit-msg-hook "feat: add feature with colon and description" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "accept commit message with valid custom type and colon" {
+  run ./commit-msg-hook "doc: add feature with colon" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "reject commit message with invalid custom type" {
+  run ./commit-msg-hook "invalid: add invalid type" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "reject commit message without description" {
+  run ./commit-msg-hook "feat: " > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+####################################################################################################
+# Test cases covering (4): OPTIONAL scope with correct format
+####################################################################################################
+
+@test "reject commit message with invalid scope format (underscore)" {
+  run ./commit-msg-hook "feat(invalid_scope): message with invalid scope" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+@test "reject commit message with invalid scope format (whitespace)" {
+  run ./commit-msg-hook "feat(invalid scope): message with invalid scope" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "accept commit message with valid scope format" {
+  run ./commit-msg-hook "feat(api): message with valid scope" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+####################################################################################################
+# Test cases covering (6) and (7): OPTIONAL body beginning with a blank line
+####################################################################################################
+
+@test "reject commit message with body starting immediately after description" {
+  run ./commit-msg-hook "$(printf "feat: short description\nextra body")" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "reject commit message with empty body" {
+  run ./commit-msg-hook "$(printf "feat: short description\n\n ")" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "accept commit message with body beginning one blank line after description" {
+  run ./commit-msg-hook "$(printf "feat: short description\n\nadditional details in body")" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+####################################################################################################
+# Test cases covering (8): OPTIONAL footer with valid format
+# Test cases covering (9): REQUIRE valid footer tokens
+####################################################################################################
+
+@test "accept commit message with valid footer format (colon)" {
+  run ./commit-msg-hook "$(printf "feat: short description\n\nReviewed-by: Z")" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "reject commit message with valid footer format (colon) but invalid footer token" {
+  run ./commit-msg-hook "$(printf "feat: short description\n\nReviewed by: Z")" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "accept commit message with body and valid footer format (colon)" {
+  run ./commit-msg-hook "$(printf "feat: short description\n\nBody\n\nReviewed-by: Z")" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "accept commit message with body and valid footer format (hash)" {
+  run ./commit-msg-hook "$(printf "feat: short description\n\nBody\n\nFix #42")" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "accept commit message with body and valid footer format (colon) with whitespace and newline" {
+  run ./commit-msg-hook "$(printf "feat: short description\n\nBody\n\nReviewed-by: Sebastian Baltes\n<sebastian.baltes@uni-bayreuth.de>\nFix #42")" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+####################################################################################################
+# Test cases covering (11): OPTIONAL breaking change indicator in type prefix or footer
+# Test cases covering (12): REQUIRED breaking change format in footer
+# Test cases covering (13): REQUIRED breaking change format in type prefix
+# Test cases covering (16): OPTIONAL alternative spelling BREAKING-CHANGE
+####################################################################################################
+
+@test "reject commit message with invalid breaking change footer format (no description)" {
+  run ./commit-msg-hook "$(printf "feat: breaking change without '!'\n\nBREAKING CHANGE")" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "reject commit message with invalid breaking change footer format (missing colon)" {
+  run ./commit-msg-hook "$(printf "feat: update function\n\nBREAKING CHANGE new function behavior")" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}
+
+@test "accept commit message with breaking change indicated by '!'" {
+  run ./commit-msg-hook "feat!: change with breaking impact" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "accept commit message with BREAKING CHANGE in footer" {
+  run ./commit-msg-hook "$(printf "feat: non-breaking change\n\nBREAKING CHANGE: new API behavior")" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "accept commit message with BREAKING-CHANGE footer" {
+  run ./commit-msg-hook "$(printf "feat: new API\n\nBREAKING-CHANGE: modifies request handling")" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+####################################################################################################
+# Test case covering (15): Case insensitivity for all components except BREAKING CHANGE
+####################################################################################################
+
+@test "accept commit message with lowercase type and description" {
+  run ./commit-msg-hook "feat: lowercase type and description" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "accept commit message with uppercase type and description" {
+  run ./commit-msg-hook "FEAT: UPPERCASE TYPE AND DESCRIPTION" > /dev/null 2>&1
+  [ "$status" -eq 0 ]
+}
+
+@test "reject commit message with lowercase breaking change footer" {
+  run ./commit-msg-hook "$(printf "feat: some feature\n\nbreaking change: lowercase breaking")" > /dev/null 2>&1
+  [ "$status" -eq 1 ]
+}

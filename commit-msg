@@ -1,0 +1,3 @@
+#!/bin/sh
+
+./.git/hooks/scripts/commit-msg-hook "$(cat "$1")"
