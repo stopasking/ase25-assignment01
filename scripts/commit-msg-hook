@@ -1,16 +1,21 @@
-#!/usr/local/bin/java --source 21
+#!/bin/bash
 // TODO: Update path of your Java binary if necessary
 
-public class CommitMsgHook {
-    public static void main(String[] args) {
-        String commitMessage = args[0];
+JAVA_MAIN="CommitMsgHook"
 
-        if (commitMessage.isEmpty()) {
-            System.out.println("Commit message is invalid.");
-            System.exit(1);
-        }
+echo "Compiling $JAVA_MAIN.java..."
+javac "$JAVA_MAIN.java"
+if [ $? -ne 0 ]; then
+    echo "Commit aborted: Java compilation failed."
+    exit 1
+fi
 
-        System.out.println("Commit message is valid.");
-        System.exit(0);
-    }
-}
+echo "Running $JAVA_MAIN..."
+java "$JAVA_MAIN"
+if [ $? -ne 0 ]; then
+    echo "Commit aborted: Java program failed."
+    exit 1
+fi
+
+echo "Java program ran successfully. Proceeding with commit."
+exit 0
